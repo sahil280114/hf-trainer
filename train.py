@@ -27,14 +27,14 @@ IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "<|pad|>"
 DEFAULT_EOS_TOKEN = "<|endoftext|>"
 DEFAULT_UNK_TOKEN = "<|unk|>"
-PROMPT_DICT = {
-    "prompt_input": (
-        "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
-    ),
-    "prompt_no_input": (
-        "### Instruction:\n{instruction}\n\n### Response:"
-    ),
-}
+# PROMPT_DICT = {
+#     "prompt_input": (
+#         "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
+#     ),
+#     "prompt_no_input": (
+#         "### Instruction:\n{instruction}\n\n### Response:"
+#     ),
+# }
 
 
 @dataclass
@@ -106,11 +106,10 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
 
 def preprocess(
     sources: Sequence[str],
-    targets: Sequence[str],
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
     """Preprocess the data by tokenizing."""
-    examples = [s + t for s, t in zip(sources, targets)]
+    examples = sources
     examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer) for strings in (examples, sources)]
     input_ids = examples_tokenized["input_ids"]
     labels = copy.deepcopy(input_ids)
@@ -128,15 +127,14 @@ class SupervisedDataset(Dataset):
         list_data_dict = utils.jload(data_path)
 
         logging.warning("Formatting inputs...")
-        prompt_input, prompt_no_input = PROMPT_DICT["prompt_input"], PROMPT_DICT["prompt_no_input"]
         sources = [
-            prompt_input.format_map(example) if example.get("input", "") != "" else prompt_no_input.format_map(example)
+            example
             for example in list_data_dict
         ]
-        targets = [f"{example['output']}{tokenizer.eos_token}" for example in list_data_dict]
+        
 
         logging.warning("Tokenizing inputs... This may take some time...")
-        data_dict = preprocess(sources, targets, tokenizer)
+        data_dict = preprocess(sources, tokenizer)
 
         self.input_ids = data_dict["input_ids"]
         self.labels = data_dict["labels"]
@@ -187,7 +185,7 @@ def train():
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
-        model_max_length=training_args.model_max_length,
+        model_max_length=2048,
         padding_side="right",
         use_fast=False,
         trust_remote_code=True,
