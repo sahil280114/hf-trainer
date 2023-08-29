@@ -82,23 +82,26 @@ Below is a command that fine-tunes Replit-3B with an alpaca-formated dataset on 
 Replace `<your_random_port>` with a port of your own, `<path_to_replit_model>` with the path to your converted checkpoint and tokenizer or leave default for Replit's base code model, and `<your_output_dir>` with where you want to store your outputs.
 
 ```bash
-torchrun --nproc_per_node=2 --master_port=<your_random_port> train.py \
-    --model_name_or_path <path_to_replit_model> \
-    --data_path ./<your_dataset>.json \
+torchrun --nproc_per_node=10 --master_port=2121 train.py \
+    --model_name_or_path codellama/CodeLlama-7b-Instruct-hf \
+    --data_path ./data.json \
     --bf16 True \
-    --output_dir <your_output_dir> \
+    --output_dir torch_llama \
     --num_train_epochs 3 \
     --per_device_train_batch_size 1 \
-    --gradient_accumulation_steps 4 \
+    --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 50 \
+    --save_steps 2 \
     --save_total_limit 2 \
-    --learning_rate 2e-5 \
-    --weight_decay 0. \
+    --learning_rate 3e-4 \
+    --weight_decay 0.003 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
+    --fsdp "full_shard auto_wrap" \
+    --fsdp_transformer_layer_cls_to_wrap 'LlamaDecoderLayer' \
+    --gradient_checkpointing
 ```
 
 Note the given training script is meant to be simple and easy to use, and is not particularly optimized.

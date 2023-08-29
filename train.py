@@ -16,7 +16,7 @@ import copy
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, Optional, Sequence
-
+import random
 import torch
 import transformers
 import utils
@@ -24,17 +24,10 @@ from torch.utils.data import Dataset
 from transformers import Trainer
 
 IGNORE_INDEX = -100
-DEFAULT_PAD_TOKEN = "<|pad|>"
-DEFAULT_EOS_TOKEN = "<|endoftext|>"
-DEFAULT_UNK_TOKEN = "<|unk|>"
-# PROMPT_DICT = {
-#     "prompt_input": (
-#         "### Instruction:\n{instruction}\n\n### Input:\n{input}\n\n### Response:"
-#     ),
-#     "prompt_no_input": (
-#         "### Instruction:\n{instruction}\n\n### Response:"
-#     ),
-# }
+DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_EOS_TOKEN = "</s>"
+DEFAULT_BOS_TOKEN = "<s>"
+DEFAULT_UNK_TOKEN = "<unk>"
 
 
 @dataclass
@@ -50,9 +43,9 @@ class DataArguments:
 @dataclass
 class TrainingArguments(transformers.TrainingArguments):
     cache_dir: Optional[str] = field(default=None)
-    optim: str = field(default="adamw_torch_fused")
+    optim: str = field(default="adamw_torch")
     model_max_length: int = field(
-        default=2000,
+        default=4096,
         metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
 
@@ -106,10 +99,11 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
 
 def preprocess(
     sources: Sequence[str],
+    targets: Sequence[str],
     tokenizer: transformers.PreTrainedTokenizer,
 ) -> Dict:
     """Preprocess the data by tokenizing."""
-    examples = sources
+    examples = [s + t for s, t in zip(sources, targets)]
     examples_tokenized, sources_tokenized = [_tokenize_fn(strings, tokenizer) for strings in (examples, sources)]
     input_ids = examples_tokenized["input_ids"]
     labels = copy.deepcopy(input_ids)
@@ -127,14 +121,18 @@ class SupervisedDataset(Dataset):
         list_data_dict = utils.jload(data_path)
 
         logging.warning("Formatting inputs...")
+        random.shuffle(list_data_dict)
         sources = [
-            example
+            example["input"]
             for example in list_data_dict
         ]
-        
+        targets = [
+            example["output"]
+            for example in list_data_dict
+        ]
 
         logging.warning("Tokenizing inputs... This may take some time...")
-        data_dict = preprocess(sources, tokenizer)
+        data_dict = preprocess(sources, targets, tokenizer)
 
         self.input_ids = data_dict["input_ids"]
         self.labels = data_dict["labels"]
@@ -185,7 +183,7 @@ def train():
     tokenizer = transformers.AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
-        model_max_length=2048,
+        model_max_length=training_args.model_max_length,
         padding_side="right",
         use_fast=False,
         trust_remote_code=True,
