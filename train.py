@@ -22,12 +22,13 @@ import transformers
 import utils
 from torch.utils.data import Dataset
 from transformers import Trainer
-
+from code_tokenizer import CodeLlamaTokenizer
 IGNORE_INDEX = -100
 DEFAULT_PAD_TOKEN = "[PAD]"
 DEFAULT_EOS_TOKEN = "</s>"
 DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_UNK_TOKEN = "<unk>"
+
 
 
 @dataclass
@@ -180,7 +181,7 @@ def train():
         trust_remote_code=True,
     )
 
-    tokenizer = transformers.AutoTokenizer.from_pretrained(
+    tokenizer = CodeLlamaTokenizer.from_pretrained(
         model_args.model_name_or_path,
         cache_dir=training_args.cache_dir,
         model_max_length=training_args.model_max_length,
