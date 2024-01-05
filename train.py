@@ -24,12 +24,12 @@ from torch.utils.data import Dataset
 from transformers import Trainer
 from code_tokenizer import CodeLlamaTokenizer
 IGNORE_INDEX = -100
-DEFAULT_PAD_TOKEN = "[PAD]"
+DEFAULT_PAD_TOKEN = "</s>"
 DEFAULT_EOS_TOKEN = "</s>"
 DEFAULT_BOS_TOKEN = "<s>"
 DEFAULT_UNK_TOKEN = "<unk>"
 
-
+import tqdm
 
 @dataclass
 class ModelArguments:
@@ -46,7 +46,7 @@ class TrainingArguments(transformers.TrainingArguments):
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     model_max_length: int = field(
-        default=4096,
+        default=2048,
         metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
 
@@ -84,7 +84,7 @@ def _tokenize_fn(strings: Sequence[str], tokenizer: transformers.PreTrainedToken
             max_length=tokenizer.model_max_length,
             truncation=True,
         )
-        for text in strings
+        for text in tqdm.tqdm(strings)
     ]
     input_ids = labels = [tokenized.input_ids[0] for tokenized in tokenized_list]
     input_ids_lens = labels_lens = [
@@ -120,15 +120,15 @@ class SupervisedDataset(Dataset):
         super(SupervisedDataset, self).__init__()
         logging.warning("Loading data...")
         list_data_dict = utils.jload(data_path)
-
+        #list_data_dict = list_data_dict[:1000]
         logging.warning("Formatting inputs...")
         random.shuffle(list_data_dict)
         sources = [
-            example["input"]
+           example["question"]
             for example in list_data_dict
         ]
         targets = [
-            example["output"]
+            example["answer"]
             for example in list_data_dict
         ]
 
@@ -204,6 +204,8 @@ def train():
     )
 
     data_module = make_supervised_data_module(tokenizer=tokenizer, data_args=data_args)
+    torch.save(data_module,"data.pt")
+    #data_module = torch.load("data.pt")
     trainer = Trainer(model=model, tokenizer=tokenizer, args=training_args, **data_module)
     trainer.train()
     trainer.save_state()
